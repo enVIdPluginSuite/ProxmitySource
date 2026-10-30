@@ -1,0 +1,23 @@
+name: ProxmitySource
+version: '${version}'
+main: dev.etran.proxmitysource.ProxmitySourcePlugin
+api-version: '1.20'
+description: Place a sound source and it figures out how sound travels around walls, with echo and custom sounds.
+authors: [enVId Tech]
+
+commands:
+  proxsource:
+    description: Manage ProxmitySource sound sources.
+    usage: /<command> help
+    aliases: [psource, pxs]
+
+permissions:
+  proxmitysource.admin:
+    description: Create, edit, bake, trigger and reload sources, change config, manage custom sounds.
+    default: op
+  proxmitysource.mute:
+    description: Let a player mute/unmute ProxmitySource sounds for themselves.
+    default: true
+  proxmitysource.pack:
+    description: Let a player fetch the sound resource pack and opt out of the automatic offer.
+    default: true

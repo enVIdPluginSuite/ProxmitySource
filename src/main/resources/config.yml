@@ -1,0 +1,192 @@
+# ============================================================================
+#  ProxmitySource - config.yml                      (c) enVId Tech
+#  Edit this file, or change values in-game:   /proxsource config set <path> <value>
+#  Apply file edits with:                       /proxsource reload
+#
+#  How it works: you place a SOUND SOURCE (/proxsource create). The plugin "bakes" a sound profile
+#  for it: it floods outward from the source through the blocks around it, working out how loud
+#  every region is. Open air costs only distance; solid blocks cost extra, depending on the material
+#  and on the source's penetration. The result is saved to plugins/ProxmitySource/profiles/ so nothing
+#  heavy happens while sounds play. Changing the radius or penetration re-bakes automatically.
+#
+#  Every source inherits "defaults" below unless it overrides a value
+#  (/proxsource set <id> <property> <value>; "default" clears the override).
+# ============================================================================
+
+settings:
+  # Chat prefix ("&" colour codes).
+  prefix: "&6[ProxmitySource] &r"
+
+  # How often (ticks) trigger zones are checked for players/entities and the time trigger.
+  poll-interval-ticks: 10
+
+  # Players in spectator mode do not trigger proximity.
+  ignore-spectators: true
+
+  # Sounds quieter than this (0..1) are skipped entirely.
+  min-audible-gain: 0.02
+
+  # Amplified sounds are played as several identical copies layered on top of each other (that is the
+  # only way to be louder than Minecraft's per-sound maximum). This caps how many copies one listener gets.
+  max-layers: 4
+
+  # Sound takes time to travel. When enabled, far-away players hear the sound slightly later.
+  propagation-delay:
+    enabled: true
+    blocks-per-tick: 17.15   # real speed of sound (343 m/s) is ~17.15 blocks per 1/20 s
+
+defaults:
+  # Vanilla key ("minecraft:block.bell.use") or a custom sound name ("toll" or "proxmitysource:toll").
+  sound: "minecraft:block.bell.use"
+
+  # Volume slider category players can turn down: MASTER MUSIC RECORDS WEATHER BLOCKS HOSTILE NEUTRAL PLAYERS AMBIENT VOICE
+  category: BLOCKS
+
+  # --- the three main knobs (also the optional arguments of /proxsource create) ---
+  # Distance in blocks at which the sound fades to silence. Max is profile.max-radius.
+  radius: 64.0
+  # 0.0 = no echo at all, 1.0 = very echoey. How much echo you hear also depends on how enclosed
+  # the listener's surroundings are (caves and rooms echo, open fields much less).
+  echoiness: 0.4
+  # 0.0 = walls block sound completely, 1.0 = sound passes through walls as if they were air.
+  penetration: 0.3
+
+  # Loudness right at the source, 0.0 - 1.0 (a trim; use amplification to go louder).
+  volume: 1.0
+  # Amplification 0.1 - 8.0. Above 1.0 the sound is louder AND stays at full volume further out before
+  # fading (2.0 = full volume until about half the radius), by layering extra copies (see settings.max-layers).
+  # It never reaches beyond the radius. Below 1.0 it just makes the source quieter.
+  amplification: 1.0
+  # Shape of the loudness curve over distance. 1.0 = linear (like a vanilla bell).
+  # Above 1.0 it fades faster up close (more natural). Below 1.0 it carries further before fading.
+  falloff: 1.0
+  # 0.5 - 2.0
+  pitch: 1.0
+  # Minimum seconds between two firings of the same source.
+  cooldown-seconds: 5.0
+  # Each firing plays the sound `tolls` times (a bell that tolls N times), `toll-interval-seconds` apart.
+  tolls: 1
+  toll-interval-seconds: 2.0
+
+  # With the TIMER trigger the source fires automatically every this many seconds (real time).
+  # Example: frequency-seconds 600, tolls 3, toll-interval-seconds 4 = "every 10 minutes, ring 3 times, 4 seconds apart".
+  frequency-seconds: 60.0
+  # With the TIME trigger: toll once per clock hour (1-12) instead of the fixed count above.
+  toll-by-hour: false
+
+  # Triggers (proximity, interaction, redstone, mobs) look at a sphere this big around the source.
+  trigger-radius: 6.0
+
+  # Echo shaping. Number of echoes = echoiness x echo-max-count. Each echo is echo-decay times
+  # quieter than the previous, shifted by echo-pitch-shift, and echo-delay-ticks later
+  # (scaled by how big the surrounding space is).
+  echo-max-count: 4
+  echo-delay-ticks: 10
+  echo-decay: 0.55
+  echo-pitch-shift: 0.97
+
+# ----------------------------------------------------------------------------
+# Profile baking (the wall detection). All of this is computed OFF the server thread, in small
+# slices, and saved to disk. Memory used while baking is roughly (2 x radius)^3 x 3 bytes
+# (radius 64 ~ 6 MB, radius 128 ~ 50 MB) plus the chunk copies.
+# ----------------------------------------------------------------------------
+profile:
+  # Largest radius a source may have. Cost grows with radius cubed, raise with care.
+  max-radius: 128
+
+  # Extra "effective blocks" a fully solid block costs the sound when penetration is 0.
+  # Cost per block = 1 + wall-cost x (1 - penetration) x material factor.
+  wall-cost: 10.0
+
+  # Stored resolution of the profile, in blocks per cell (1 = most detailed, 4 = smallest file).
+  cell-size: 2
+
+  # Echo / enclosure sampling: size of an echo cell and how far (blocks) rays look for walls.
+  echo-cell-size: 4
+  echo-ray-length: 16
+
+  # Chunks copied per tick while baking, and whether existing-but-unloaded chunks may be loaded
+  # from disk for an accurate bake. (Never-generated chunks are never created.)
+  chunks-per-tick: 4
+  load-unloaded-chunks: true
+
+  # Re-bake automatically a while after blocks change near a source (players building walls etc.).
+  auto-rebake: true
+  settle-seconds: 30
+  rebake-min-interval-seconds: 120
+
+  # Factor for solid blocks that do not fully block light (slabs, stairs, ...) and are not listed below.
+  wall-partial-factor: 0.6
+
+  # Material name contains -> factor (1.0 = normal stone-like wall). First match wins, so list specific
+  # names before general ones. Anything not solid (air, grass, torches, ...) is free to pass.
+  wall-materials:
+    WATER: 0.15
+    LAVA: 0.15
+    IRON_BARS: 0.15
+    GLASS_PANE: 0.25
+    GLASS: 0.35
+    LEAVES: 0.3
+    FENCE: 0.25
+    TRAPDOOR: 0.5
+    DOOR: 0.5
+    WOOL: 1.5
+    BOOKSHELF: 1.2
+    OBSIDIAN: 1.5
+
+# ----------------------------------------------------------------------------
+# Custom sounds: drop .ogg (Vorbis) files in plugins/ProxmitySource/sounds/ and run /proxsource reload.
+# ProxmitySource packs them into proxmitysource-pack.zip (Java) and proxmitysource-bedrock.mcpack (Bedrock). Players need a pack.
+# Use MONO files, stereo files do not fade with distance in Minecraft.
+# ----------------------------------------------------------------------------
+resource-pack:
+  # Pack format range written to pack.mcmeta. 15 = Minecraft 1.20.1. 999 = "any newer version".
+  pack-format-min: 15
+  pack-format-max: 999
+  description: "ProxmitySource custom sounds"
+
+  # Files larger than this are streamed from disk instead of loaded into memory.
+  stream-threshold-kb: 512
+
+  # Offer the pack to Java players when they join (only if a URL is available, see below). It is always
+  # OPTIONAL: players get Minecraft's normal accept/decline prompt. Someone who declines is remembered
+  # (pack-optout.yml) and not asked again; they can still run /proxsource pack get later.
+  offer-on-join: true
+  send-delay-ticks: 40
+  # When sounds are added/removed/changed, offer the updated pack again to everyone online (except opted-out players).
+  offer-on-update: true
+
+  # Option A: you host proxmitysource-pack.zip yourself and put the direct URL here.
+  url: ""
+
+  # Option B: let this plugin host it. Opens a small web server on the port below.
+  # The port must be reachable by players. public-address is your server's public IP or domain.
+  host:
+    enabled: false
+    bind-address: "0.0.0.0"
+    port: 8123
+    public-address: ""
+
+# ----------------------------------------------------------------------------
+# Bedrock players (GeyserMC). The plugin also builds plugins/ProxmitySource/proxmitysource-bedrock.mcpack.
+# Bedrock clients only receive packs when they connect, and the Java offer above does not apply to them:
+# Geyser has to hand the pack out. Either put the pack's direct URL into Geyser's config
+# (resource-pack-urls, force-resource-packs: false keeps it optional), or let this plugin copy the file
+# into Geyser's packs folder. See README.
+# ----------------------------------------------------------------------------
+bedrock:
+  enabled: true
+  # Bedrock sound category: block, ambient, neutral, hostile, music, record, weather, player, ui, bell...
+  category: block
+  # Copy the .mcpack into Geyser's packs folder whenever it is rebuilt.
+  auto-copy-to-geyser: false
+  # Leave empty to use plugins/Geyser-Spigot/packs. Set it for Geyser on another server/proxy path.
+  geyser-packs-folder: ""
+
+sounds:
+  # Check the sounds/ folder this often (seconds) and rebuild the packs automatically when you add, change
+  # or remove an .ogg. 0 = off (then use /proxsource reload).
+  auto-detect-seconds: 10
+  # Allow "/proxsource sound add <name> <url>" (admins only) to download an .ogg onto the server.
+  allow-url-download: true
+  max-download-mb: 10
